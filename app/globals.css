@@ -1,0 +1,241 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Light theme colors */
+  --bg: #ffffff;
+  --bg-secondary: #f3f3f3;
+  --bg-tertiary: #e8e8e8;
+  --border: #d4d4d4;
+  --text: #333333;
+  --text-secondary: #666666;
+  --accent: #0078d4;
+  --accent-hover: #106ebe;
+  --success: #107c10;
+  --warning: #ff8c00;
+  --error: #d13438;
+  --green: #107c10;
+  --yellow: #ff8c00;
+  --blue: #0078d4;
+  --purple: #5c2d91;
+  --orange: #ff8c00;
+  --cyan: #00bcf2;
+  --magenta: #5c2d91;
+  --keyword: #0000ff;
+  --function: #795e26;
+  --string: #a31515;
+  --comment: #008000;
+  --type: #267f99;
+  --variable: #001080;
+}
+
+.dark {
+  /* Dark theme colors */
+  --bg: #1e1e1e;
+  --bg-secondary: #2d2d30;
+  --bg-tertiary: #3c3c3c;
+  --border: #464647;
+  --text: #d4d4d4;
+  --text-secondary: #858585;
+  --accent: #007acc;
+  --accent-hover: #1177bb;
+  --success: #4ec9b0;
+  --warning: #dcdcaa;
+  --error: #f44747;
+  --green: #4ec9b0;
+  --yellow: #dcdcaa;
+  --blue: #4fc1ff;
+  --purple: #c586c0;
+  --orange: #ce9178;
+  --cyan: #4ec9b0;
+  --magenta: #c586c0;
+  --keyword: #c586c0;
+  --function: #dcdcaa;
+  --string: #4ec9b0;
+  --comment: #6a9955;
+  --type: #4fc1ff;
+  --variable: #d4d4d4;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  color: var(--text);
+  background: var(--bg);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    color-scheme: dark;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Code block styling */
+.code-block {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Selection styling */
+::selection {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* Focus styles */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2;
+  --tw-ring-color: var(--accent);
+  --tw-ring-offset-color: var(--bg);
+}
+
+/* Animation utilities */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Terminal-like cursor */
+.terminal-cursor::after {
+  content: '_';
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* Glow effect for buttons */
+.glow-button {
+  transition: all 0.3s ease;
+}
+
+.glow-button:hover {
+  box-shadow: 0 0 20px var(--accent);
+  transform: translateY(-1px);
+}
+
+/* VIM-style syntax highlighting overrides */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: var(--comment);
+}
+
+.token.punctuation {
+  color: var(--text);
+}
+
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: var(--error);
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: var(--string);
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+  color: var(--orange);
+}
+
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: var(--keyword);
+}
+
+.token.function,
+.token.class-name {
+  color: var(--function);
+}
+
+.token.regex,
+.token.important,
+.token.variable {
+  color: var(--variable);
+}
+
+.token.type,
+.token.namespace {
+  color: var(--type);
+}
