@@ -3,15 +3,16 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Copy, Clock, Users, Trash2, Share2 } from 'lucide-react'
+import { Copy, Clock, Users, Trash2, Share2, Upload, Loader2 } from 'lucide-react'
 import { useRoom } from '@/components/room-context'
 import { getTimeRemaining } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 
 export function RoomInfo() {
-  const { room, clearRoom } = useRoom()
+  const { room, clearRoom, syncToDatabase, isSyncing, getPendingItemsCount } = useRoom()
   const [timeRemaining, setTimeRemaining] = useState('')
   const [isCopied, setIsCopied] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
     if (!room) return
@@ -20,11 +21,20 @@ export function RoomInfo() {
       setTimeRemaining(getTimeRemaining(room.createdAt))
     }
 
+    const updatePendingCount = () => {
+      setPendingCount(getPendingItemsCount())
+    }
+
     updateTime()
-    const interval = setInterval(updateTime, 60000) // Update every minute
+    updatePendingCount()
+    
+    const interval = setInterval(() => {
+      updateTime()
+      updatePendingCount()
+    }, 1000) // Update every second to show real-time pending count
 
     return () => clearInterval(interval)
-  }, [room])
+  }, [room, getPendingItemsCount])
 
   const copyRoomKey = async () => {
     if (!room) return
@@ -65,6 +75,17 @@ export function RoomInfo() {
     }
   }
 
+  const handleSync = async () => {
+    if (pendingCount === 0) {
+      toast.info('No items to sync')
+      return
+    }
+    
+    if (window.confirm(`Sync ${pendingCount} pending item(s) to database?`)) {
+      await syncToDatabase()
+    }
+  }
+
   if (!room) return null
 
   return (
@@ -92,9 +113,33 @@ export function RoomInfo() {
                 {room.items.length} items
               </span>
             </div>
+
+            {pendingCount > 0 && (
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 rounded-full bg-yellow-500 animate-pulse"></div>
+                <span className="font-mono text-sm text-yellow-500">
+                  {pendingCount} pending
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSync}
+              disabled={isSyncing || pendingCount === 0}
+              className="glow-button"
+            >
+              {isSyncing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-2" />
+              )}
+              {isSyncing ? 'Syncing...' : `Sync (${pendingCount})`}
+            </Button>
+
             <Button
               variant="outline"
               size="sm"

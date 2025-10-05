@@ -112,9 +112,9 @@ export default function RoomPage() {
 
   return (
     <RoomProvider roomKey={roomKey}>
-      <div className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
+      <div className="h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col">
         <Header />
-        <div className="container mx-auto px-4 py-4">
+        <div className="flex-1 flex flex-col container mx-auto px-4 py-4">
           <RoomInfo />
           <Canvas />
         </div>

@@ -42,4 +42,7 @@ export interface RoomContextType {
   updateItem: (id: string, updates: Partial<NoteItem>) => void
   removeItem: (id: string) => void
   clearRoom: () => void
+  syncToDatabase: () => Promise<void>
+  isSyncing: boolean
+  getPendingItemsCount: () => number
 }

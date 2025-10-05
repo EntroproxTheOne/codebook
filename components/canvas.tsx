@@ -20,7 +20,8 @@ import {
   Trash2,
   Clock,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react'
 import { isCodeFile, getFileExtension, getLanguageFromExtension } from '@/lib/utils'
 import { CodeBlock } from '@/components/code-block'
@@ -153,9 +154,45 @@ function CanvasItem({ item, onUpdate, onRemove }: CanvasItemProps) {
     })
   }
 
-  const copyContent = () => {
-    navigator.clipboard.writeText(item.content)
-    toast.success('Content copied to clipboard')
+  const copyContent = async () => {
+    if (item.type === 'image') {
+      try {
+        // For images, copy the actual image to clipboard
+        if (item.content.startsWith('data:')) {
+          // Convert data URL to blob
+          const response = await fetch(item.content)
+          const blob = await response.blob()
+          
+          // Copy blob to clipboard
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              [blob.type]: blob
+            })
+          ])
+          toast.success('Image copied to clipboard')
+        } else {
+          // For URL images, fetch and copy
+          const response = await fetch(item.content)
+          const blob = await response.blob()
+          
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              [blob.type]: blob
+            })
+          ])
+          toast.success('Image copied to clipboard')
+        }
+      } catch (error) {
+        console.error('Failed to copy image:', error)
+        // Fallback to copying URL
+        navigator.clipboard.writeText(item.content)
+        toast.success('Image URL copied to clipboard')
+      }
+    } else {
+      // For text and code, copy as text
+      navigator.clipboard.writeText(item.content)
+      toast.success('Content copied to clipboard')
+    }
   }
 
   const getItemIcon = () => {
@@ -328,7 +365,7 @@ function CanvasItem({ item, onUpdate, onRemove }: CanvasItemProps) {
 }
 
 export function Canvas() {
-  const { room, addItem, updateItem, removeItem } = useRoom()
+  const { room, addItem, updateItem, removeItem, isSyncing } = useRoom()
   const [isAdding, setIsAdding] = useState(false)
   const [newItemType, setNewItemType] = useState<'text' | 'code' | 'image'>('text')
   const [isCreatingText, setIsCreatingText] = useState(false)
@@ -497,13 +534,25 @@ export function Canvas() {
   if (!room) return null
 
   return (
-    <div className="flex-1 relative overflow-hidden bg-[var(--bg)]">
+    <div className="flex-1 relative overflow-hidden bg-[var(--bg)]" style={{ height: 'calc(100vh - 200px)' }}>
+      {/* Workspace lock overlay during sync */}
+      {isSyncing && (
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg p-6 text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-[var(--accent)]" />
+            <h3 className="text-lg font-semibold text-[var(--text)] mb-2">Syncing to Database</h3>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Please wait while your changes are being saved...
+            </p>
+          </div>
+        </div>
+      )}
+      
       {/* Canvas */}
       <div
         ref={canvasRef}
-        className="w-full h-full relative cursor-crosshair"
+        className={`w-full h-full relative cursor-crosshair ${isSyncing ? 'pointer-events-none' : ''}`}
         tabIndex={0}
-        style={{ minHeight: 'calc(100vh - 200px)' }}
         onClick={handleCanvasClick}
       >
         {room.items.map((item) => (

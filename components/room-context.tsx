@@ -9,11 +9,10 @@ const RoomContext = createContext<RoomContextType | undefined>(undefined)
 
 export function RoomProvider({ children, roomKey }: { children: React.ReactNode; roomKey?: string }) {
   const [room, setRoomState] = useState<Room | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
   
   // Local cache for fast pasting
   const localItemsRef = useRef<Map<string, NoteItem>>(new Map())
-  const syncTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
-  const batchSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingSyncItemsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
@@ -42,7 +41,7 @@ export function RoomProvider({ children, roomKey }: { children: React.ReactNode;
     setRoomState(newRoom)
   }
 
-  // Optimized addItem with local cache
+  // Optimized addItem with local cache (no auto-sync)
   const addItem = useCallback((item: Omit<NoteItem, 'id' | 'createdAt'>) => {
     if (!room) {
       console.error('No room available for adding item')
@@ -70,16 +69,11 @@ export function RoomProvider({ children, roomKey }: { children: React.ReactNode;
       items: [...prev.items, localItem] 
     } : null)
 
-    // Schedule database sync after 10-15 seconds
-    const syncTimeout = setTimeout(() => {
-      syncItemToDatabase(localId, localItem)
-    }, 12000 + Math.random() * 3000) // Random delay between 12-15 seconds
-
-    syncTimeoutsRef.current.set(localId, syncTimeout)
+    // Add to pending sync list
     pendingSyncItemsRef.current.add(localId)
 
     // Show immediate feedback
-    toast.success('Item added (syncing...)')
+    toast.success('Item added (pending sync)')
   }, [room])
 
   // Sync individual item to database
@@ -143,7 +137,7 @@ export function RoomProvider({ children, roomKey }: { children: React.ReactNode;
     }
   }
 
-  // Optimized updateItem with local cache
+  // Optimized updateItem with local cache (no auto-sync)
   const updateItem = useCallback((id: string, updates: Partial<NoteItem>) => {
     if (!room) return
 
@@ -166,59 +160,11 @@ export function RoomProvider({ children, roomKey }: { children: React.ReactNode;
       return
     }
 
-    // For database items, debounce the update
-    const existingTimeout = syncTimeoutsRef.current.get(id)
-    if (existingTimeout) {
-      clearTimeout(existingTimeout)
-    }
-
-    const updateTimeout = setTimeout(async () => {
-      try {
-        const response = await fetch(`/api/rooms/${room.key}/items/${id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updates)
-        })
-        
-        const data = await response.json()
-        
-        if (data.success) {
-          setRoomState(prev => prev ? {
-            ...prev,
-            items: prev.items.map(item => 
-              item.id === id ? { ...data.item, pendingSync: false } : item
-            )
-          } : null)
-        } else {
-          console.error('Failed to update item:', data.error)
-          // Revert optimistic update on failure
-          setRoomState(prev => prev ? {
-            ...prev,
-            items: prev.items.map(item => 
-              item.id === id ? { ...item, pendingSync: false } : item
-            )
-          } : null)
-        }
-      } catch (error) {
-        console.error('Error updating item:', error)
-        // Revert optimistic update on failure
-        setRoomState(prev => prev ? {
-          ...prev,
-          items: prev.items.map(item => 
-            item.id === id ? { ...item, pendingSync: false } : item
-          )
-        } : null)
-      } finally {
-        syncTimeoutsRef.current.delete(id)
-      }
-    }, 2000) // 2 second debounce
-
-    syncTimeoutsRef.current.set(id, updateTimeout)
+    // For database items, just mark as pending sync
+    // No automatic sync - will be handled by manual sync
   }, [room])
 
-  // Optimized removeItem with local cache
+  // Optimized removeItem with local cache (no auto-sync)
   const removeItem = useCallback((id: string) => {
     if (!room) return
 
@@ -228,13 +174,6 @@ export function RoomProvider({ children, roomKey }: { children: React.ReactNode;
       // Remove from local cache immediately
       localItemsRef.current.delete(item.localId!)
       pendingSyncItemsRef.current.delete(item.localId!)
-      
-      // Clear any pending sync timeout
-      const timeout = syncTimeoutsRef.current.get(item.localId!)
-      if (timeout) {
-        clearTimeout(timeout)
-        syncTimeoutsRef.current.delete(item.localId!)
-      }
       
       // Remove from UI immediately
       setRoomState(prev => prev ? {
@@ -252,32 +191,8 @@ export function RoomProvider({ children, roomKey }: { children: React.ReactNode;
       items: prev.items.filter(item => item.id !== id)
     } : null)
 
-    // Then sync to database
-    fetch(`/api/rooms/${room.key}/items/${id}`, {
-      method: 'DELETE'
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        toast.success('Item removed successfully')
-      } else {
-        // Revert on failure
-        setRoomState(prev => prev ? {
-          ...prev,
-          items: [...prev.items, item!]
-        } : null)
-        toast.error(data.error || 'Failed to remove item')
-      }
-    })
-    .catch(error => {
-      console.error('Error removing item:', error)
-      // Revert on failure
-      setRoomState(prev => prev ? {
-        ...prev,
-        items: [...prev.items, item!]
-      } : null)
-      toast.error('Failed to remove item')
-    })
+    // Mark for manual sync - don't sync immediately
+    toast.success('Item removed (pending sync)')
   }, [room])
 
   const clearRoom = async () => {
@@ -286,15 +201,6 @@ export function RoomProvider({ children, roomKey }: { children: React.ReactNode;
     // Clear all local cache
     localItemsRef.current.clear()
     pendingSyncItemsRef.current.clear()
-    
-    // Clear all timeouts
-    syncTimeoutsRef.current.forEach(timeout => clearTimeout(timeout))
-    syncTimeoutsRef.current.clear()
-    
-    if (batchSyncTimeoutRef.current) {
-      clearTimeout(batchSyncTimeoutRef.current)
-      batchSyncTimeoutRef.current = null
-    }
 
     try {
       const response = await fetch(`/api/rooms/${room.key}/clear`, {
@@ -315,99 +221,112 @@ export function RoomProvider({ children, roomKey }: { children: React.ReactNode;
     }
   }
 
-  // Batch sync function for better performance
-  const batchSyncItems = useCallback(async () => {
-    if (!room || pendingSyncItemsRef.current.size === 0) return
+  // Manual sync function
+  const syncToDatabase = useCallback(async () => {
+    if (!room || isSyncing) return
 
-    const itemsToSync = Array.from(pendingSyncItemsRef.current)
-      .map(localId => localItemsRef.current.get(localId))
-      .filter((item): item is NoteItem => item !== undefined)
-
-    if (itemsToSync.length === 0) return
-
+    setIsSyncing(true)
+    
     try {
-      // Remove local flags for batch sync
-      const itemsForSync = itemsToSync.map(({ isLocal, pendingSync, localId, ...item }) => item)
+      // Get all pending items (both local and updated database items)
+      const pendingItems = room.items.filter(item => item.pendingSync || item.isLocal)
       
-      const response = await fetch(`/api/rooms/${room.key}/items/batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ items: itemsForSync })
-      })
-      
-      const data = await response.json()
-      
-      if (data.success) {
-        // Replace local items with database items
-        setRoomState(prev => prev ? {
-          ...prev,
-          items: prev.items.map(item => {
-            const localIndex = itemsToSync.findIndex(localItem => localItem.localId === item.localId)
-            if (localIndex !== -1) {
-              return { ...data.items[localIndex], isLocal: false, pendingSync: false }
-            }
-            return item
-          })
-        } : null)
+      if (pendingItems.length === 0) {
+        toast.success('No items to sync')
+        return
+      }
 
-        // Clean up local cache
-        itemsToSync.forEach(item => {
-          localItemsRef.current.delete(item.localId!)
-          pendingSyncItemsRef.current.delete(item.localId!)
+      // Separate local items and updated database items
+      const localItems = pendingItems.filter(item => item.isLocal)
+      const updatedItems = pendingItems.filter(item => !item.isLocal)
+
+      let syncedCount = 0
+
+      // Sync new local items
+      if (localItems.length > 0) {
+        const itemsForSync = localItems.map(({ isLocal, pendingSync, localId, ...item }) => item)
+        
+        const response = await fetch(`/api/rooms/${room.key}/items/batch`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ items: itemsForSync })
         })
         
-        console.log(`Batch synced ${data.count} items to database`)
-      } else {
-        console.error('Failed to batch sync items:', data.error)
-        // Mark items as failed sync
-        setRoomState(prev => prev ? {
-          ...prev,
-          items: prev.items.map(item => 
-            itemsToSync.some(localItem => localItem.localId === item.localId) 
-              ? { ...item, pendingSync: false } 
-              : item
-          )
-        } : null)
+        const data = await response.json()
+        
+        if (data.success) {
+          // Replace local items with database items
+          setRoomState(prev => prev ? {
+            ...prev,
+            items: prev.items.map(item => {
+              const localIndex = localItems.findIndex(localItem => localItem.localId === item.localId)
+              if (localIndex !== -1) {
+                return { ...data.items[localIndex], isLocal: false, pendingSync: false }
+              }
+              return item
+            })
+          } : null)
+
+          // Clean up local cache
+          localItems.forEach(item => {
+            localItemsRef.current.delete(item.localId!)
+            pendingSyncItemsRef.current.delete(item.localId!)
+          })
+          
+          syncedCount += data.count
+        } else {
+          throw new Error(data.error || 'Failed to sync new items')
+        }
       }
+
+      // Sync updated database items
+      for (const item of updatedItems) {
+        try {
+          const { isLocal, pendingSync, localId, ...itemForSync } = item
+          
+          const response = await fetch(`/api/rooms/${room.key}/items/${item.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(itemForSync)
+          })
+          
+          const data = await response.json()
+          
+          if (data.success) {
+            setRoomState(prev => prev ? {
+              ...prev,
+              items: prev.items.map(prevItem => 
+                prevItem.id === item.id ? { ...data.item, pendingSync: false } : prevItem
+              )
+            } : null)
+            syncedCount++
+          } else {
+            console.error(`Failed to sync item ${item.id}:`, data.error)
+          }
+        } catch (error) {
+          console.error(`Error syncing item ${item.id}:`, error)
+        }
+      }
+
+      toast.success(`Synced ${syncedCount} items to database`)
+      
     } catch (error) {
-      console.error('Error batch syncing items:', error)
-      // Mark items as failed sync
-      setRoomState(prev => prev ? {
-        ...prev,
-        items: prev.items.map(item => 
-          itemsToSync.some(localItem => localItem.localId === item.localId) 
-            ? { ...item, pendingSync: false } 
-            : item
-        )
-      } : null)
+      console.error('Error syncing to database:', error)
+      toast.error('Failed to sync to database')
+    } finally {
+      setIsSyncing(false)
     }
+  }, [room, isSyncing])
+
+  // Get pending items count
+  const getPendingItemsCount = useCallback(() => {
+    if (!room) return 0
+    return room.items.filter(item => item.pendingSync || item.isLocal).length
   }, [room])
-
-  // Schedule batch sync every 20 seconds
-  useEffect(() => {
-    if (!room) return
-
-    const batchSyncInterval = setInterval(() => {
-      if (pendingSyncItemsRef.current.size > 0) {
-        batchSyncItems()
-      }
-    }, 20000) // 20 seconds
-
-    return () => clearInterval(batchSyncInterval)
-  }, [room, batchSyncItems])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      // Clear all timeouts on unmount
-      syncTimeoutsRef.current.forEach(timeout => clearTimeout(timeout))
-      if (batchSyncTimeoutRef.current) {
-        clearTimeout(batchSyncTimeoutRef.current)
-      }
-    }
-  }, [])
 
   const value: RoomContextType = {
     room,
@@ -415,7 +334,10 @@ export function RoomProvider({ children, roomKey }: { children: React.ReactNode;
     addItem,
     updateItem,
     removeItem,
-    clearRoom
+    clearRoom,
+    syncToDatabase,
+    isSyncing,
+    getPendingItemsCount
   }
 
   return (
