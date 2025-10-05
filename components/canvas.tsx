@@ -159,14 +159,11 @@ function CanvasItem({ item, onUpdate, onRemove }: CanvasItemProps) {
       try {
         // For images, copy the actual image to clipboard
         if (item.content.startsWith('data:')) {
-          // Convert data URL to blob
-          const response = await fetch(item.content)
-          const blob = await response.blob()
-          
-          // Copy blob to clipboard
+          // Convert data URL to file and copy as image
+          const file = dataURLToFile(item.content, item.filename || 'image')
           await navigator.clipboard.write([
             new ClipboardItem({
-              [blob.type]: blob
+              [file.type]: file
             })
           ])
           toast.success('Image copied to clipboard')
@@ -193,6 +190,19 @@ function CanvasItem({ item, onUpdate, onRemove }: CanvasItemProps) {
       navigator.clipboard.writeText(item.content)
       toast.success('Content copied to clipboard')
     }
+  }
+
+  // Convert data URL to image file for pasting
+  const dataURLToFile = (dataURL: string, filename: string = 'image'): File => {
+    const arr = dataURL.split(',')
+    const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png'
+    const bstr = atob(arr[1])
+    let n = bstr.length
+    const u8arr = new Uint8Array(n)
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n)
+    }
+    return new File([u8arr], filename, { type: mime })
   }
 
   const getItemIcon = () => {
@@ -282,6 +292,7 @@ function CanvasItem({ item, onUpdate, onRemove }: CanvasItemProps) {
             >
               <Copy className="h-3 w-3" />
             </Button>
+            
             
             <Button
               variant="ghost"
