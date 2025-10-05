@@ -17,7 +17,10 @@ import {
   Maximize2,
   Minimize2,
   Copy,
-  Trash2
+  Trash2,
+  Clock,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react'
 import { isCodeFile, getFileExtension, getLanguageFromExtension } from '@/lib/utils'
 import { CodeBlock } from '@/components/code-block'
@@ -185,6 +188,16 @@ function CanvasItem({ item, onUpdate, onRemove }: CanvasItemProps) {
     }
   }
 
+  const getSyncStatus = () => {
+    if (item.isLocal) {
+      return { icon: Clock, text: 'Syncing...', color: 'text-yellow-500' }
+    } else if (item.pendingSync) {
+      return { icon: Clock, text: 'Updating...', color: 'text-yellow-500' }
+    } else {
+      return { icon: CheckCircle, text: 'Synced', color: 'text-green-500' }
+    }
+  }
+
   return (
     <div
       ref={itemRef}
@@ -210,6 +223,16 @@ function CanvasItem({ item, onUpdate, onRemove }: CanvasItemProps) {
                 {item.language}
               </span>
             )}
+            {/* Sync Status Indicator */}
+            {(() => {
+              const status = getSyncStatus()
+              const StatusIcon = status.icon
+              return (
+                <div className={`flex items-center gap-1 ${status.color}`} title={status.text}>
+                  <StatusIcon className="h-3 w-3" />
+                </div>
+              )
+            })()}
           </div>
           
           <div className="flex items-center space-x-1">

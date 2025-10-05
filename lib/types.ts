@@ -14,6 +14,10 @@ export interface NoteItem {
     width: number
     height: number
   }
+  // Local cache optimization fields
+  isLocal?: boolean
+  pendingSync?: boolean
+  localId?: string
 }
 
 export interface Room {
