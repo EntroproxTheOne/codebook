@@ -1,4 +1,4 @@
-# Note Taking App
+# "codebook"
 
 ![Logo](logo.png)
 
