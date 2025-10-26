@@ -1,5 +1,7 @@
 # Note Taking App
 
+![Logo](logo.png)
+
 A modern, collaborative note-taking application with a VIM-inspired dark theme and canvas-based workspace.
 
 ## Features
